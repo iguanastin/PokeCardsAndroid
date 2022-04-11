@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">PokeCards</string>
+    <string name="take_photo">Take Photo</string>
+    <string name="title_activity_photo">PhotoActivity</string>
+    <string name="dummy_button">Dummy Button</string>
+    <string name="dummy_content">DUMMY\nCONTENT</string>
+    <string name="your_cards">Your Cards</string>
+    <string name="viewfinder_rectangle_overlay">viewfinder rectangle overlay</string>
+</resources>
