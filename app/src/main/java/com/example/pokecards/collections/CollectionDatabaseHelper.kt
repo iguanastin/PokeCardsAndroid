@@ -3,6 +3,8 @@ package com.example.pokecards.collections
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import androidx.core.content.contentValuesOf
+import com.example.pokecards.collections.pkmn.PkmnAPICard
 
 class CollectionDatabaseHelper(context: Context?): SQLiteOpenHelper(context, DATABASE_NAME, DATABASE_VERSION, SQLiteDatabase.OpenParams.Builder().build()) {
 
@@ -13,6 +15,21 @@ class CollectionDatabaseHelper(context: Context?): SQLiteOpenHelper(context, DAT
 
     override fun onUpgrade(p0: SQLiteDatabase?, p1: Int, p2: Int) {
         TODO("Not yet implemented")
+    }
+
+    fun insertPkmnCard(card: PkmnAPICard) {
+        writableDatabase.insert("pkmncards", null, contentValuesOf(
+            Pair("id", card.id),
+            Pair("name", card.name),
+            Pair("supertype", card.supertype),
+            Pair("subtypes", card.subtypes),
+            Pair("setid", card.setId),
+            Pair("thumburl", card.imageSmall),
+            Pair("largeurl", card.imageLarge),
+            Pair("tcgpurl", card.tcgpURL),
+            Pair("cmurl", card.cmURL)
+        )
+        )
     }
 
     companion object {

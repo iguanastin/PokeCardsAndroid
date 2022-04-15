@@ -8,7 +8,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 
-class PkmnCardDatabase(private val context: Context) {
+class PkmnAPIDatabase(private val context: Context) {
 
     private val dbFile = context.getDatabasePath(DATABASE_NAME)
     val db: SQLiteDatabase

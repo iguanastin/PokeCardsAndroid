@@ -4,6 +4,9 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.media.Image
 import android.os.Build
 import android.os.Bundle
@@ -12,13 +15,14 @@ import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
+import androidx.camera.core.ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.database.getIntOrNull
 import androidx.core.database.getStringOrNull
-import com.example.pokecards.collections.pkmn.PkmnCardDatabase
-import com.example.pokecards.collections.pkmn.PkmnCardInfo
+import com.example.pokecards.collections.pkmn.PkmnAPICard
+import com.example.pokecards.collections.pkmn.PkmnAPIDatabase
 import com.example.pokecards.databinding.ActivityPhotoBinding
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -36,7 +40,7 @@ class PhotoActivity : AppCompatActivity() {
 
     private var imageCapture: ImageCapture? = null
 
-    private var cardDatabase: PkmnCardDatabase? = null
+    private var cardDatabase: PkmnAPIDatabase? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,105 +62,88 @@ class PhotoActivity : AppCompatActivity() {
     private fun takePhoto() {
         // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture ?: return
-        runOnUiThread { viewBinding.imageCaptureButton.isEnabled = false }
+        viewBinding.apply {
+            imageCaptureButton.isEnabled = false
+            holdStillText.visibility = View.VISIBLE
+        }
 
-        imageCapture.takePicture(ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageCapturedCallback() {
-            override fun onCaptureSuccess(image: ImageProxy) {
-                cameraExecutor.submit {
-                    @SuppressLint("UnsafeOptInUsageError") // I don't know why this is necessary
-                    val img: Image = image.image!!
-                    val input = InputImage.fromMediaImage(img, image.imageInfo.rotationDegrees)
-                    val ocr = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-
-                    ocr.process(input).addOnSuccessListener { ocrText ->
-                        runOnUiThread { viewBinding.progressBar.visibility = View.VISIBLE }
-                        cameraExecutor.submit {
-                            val tokens = ocrText.text.lowercase()
-                                .replace(ocrCleanupRegex, " ")
-                                .split(Regex("\\s+"))
-                            Log.i(TAG, "OCR Tokens:   " + tokens.joinToString(" "))
-
-                            val likely: PkmnCardInfo? = findMostLikelyCard(tokens)
-
-                            runOnUiThread {
-                                viewBinding.progressBar.visibility = View.INVISIBLE
-                                viewBinding.imageCaptureButton.isEnabled = true
-                            }
-
-                            Log.i(TAG, "Photographed card is likely: $likely")
-                            startActivity(
-                                Intent(
-                                    this@PhotoActivity,
-                                    TempCardViewActivity::class.java
-                                ).putExtra("url", likely?.imageLarge)
-                            )
+        imageCapture.takePicture(
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(image: ImageProxy) {
+                    runOnUiThread {
+                        viewBinding.apply {
+                            holdStillText.visibility = View.INVISIBLE
+                            progressBar.visibility = View.VISIBLE
                         }
-                    }.addOnFailureListener {
-                        Log.e(TAG, "Failed OCR processing", it)
-                    }.addOnCompleteListener {
-                        image.close()
-                        ocr.close()
+                    }
+
+                    cameraExecutor.submit {
+//                        displayPreviewCapture(image)
+
+                        @SuppressLint("UnsafeOptInUsageError") // I don't know why this is necessary
+                        val img: Image = image.image!!
+                        val input = InputImage.fromMediaImage(img, image.imageInfo.rotationDegrees)
+                        val ocr = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+                        ocr.process(input).addOnSuccessListener { ocrText ->
+                            cameraExecutor.submit {
+                                val tokens = ocrText.text.lowercase()
+                                    .replace(ocrCleanupRegex, " ")
+                                    .split(Regex("\\s+"))
+                                Log.i(TAG, "OCR Tokens:   " + tokens.joinToString(" "))
+
+                                val likely: PkmnAPICard? = findMostLikelyCard(tokens)
+
+                                runOnUiThread {
+                                    viewBinding.apply {
+                                        resultImageView.setImageDrawable(null)
+                                        progressBar.visibility = View.INVISIBLE
+                                        imageCaptureButton.isEnabled = true
+                                    }
+                                }
+
+                                Log.i(TAG, "Photographed card is likely: $likely")
+                                startActivity(
+                                    Intent(
+                                        this@PhotoActivity,
+                                        APICardViewActivity::class.java
+                                    ).putExtra("card", likely)
+                                )
+                            }
+                        }.addOnFailureListener {
+                            Log.e(TAG, "Failed OCR processing", it)
+                        }.addOnCompleteListener {
+                            image.close()
+                            ocr.close()
+                        }
                     }
                 }
 
-//                val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
-//                labeler.process(input).addOnSuccessListener { results ->
-//                    Toast.makeText(baseContext, results.joinToString { it.text }, Toast.LENGTH_LONG).show()
-//                }.addOnFailureListener {
-//                    Log.e(TAG, "Failed to process image with ML", it)
-//                }.addOnCompleteListener {
-//                    image.close()
-//                }
-            }
-
-            override fun onError(exception: ImageCaptureException) {
-                Log.e(TAG, "Failed to take picture", exception)
-            }
-        })
-
-//        // Create time stamped name and MediaStore entry.
-//        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-//            .format(System.currentTimeMillis())
-//        val contentValues = ContentValues().apply {
-//            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-//            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-//            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
-//                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
-//            }
-//        }
-//
-//        // Create output options object which contains file + metadata
-//        val outputOptions = ImageCapture.OutputFileOptions
-//            .Builder(contentResolver,
-//                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-//                contentValues)
-//            .build()
-//
-//        // Set up image capture listener, which is triggered after photo has
-//        // been taken
-//        imageCapture.takePicture(
-//            outputOptions,
-//            ContextCompat.getMainExecutor(this),
-//            object : ImageCapture.OnImageSavedCallback {
-//                override fun onError(exc: ImageCaptureException) {
-//                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
-//                }
-//
-//                override fun
-//                        onImageSaved(output: ImageCapture.OutputFileResults){
-//                    val msg = "Photo capture succeeded: ${output.savedUri}"
-//                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
-//                    Log.d(TAG, msg)
-//                }
-//            }
-//        )
+                override fun onError(exception: ImageCaptureException) {
+                    Log.e(TAG, "Failed to take picture", exception)
+                }
+            })
     }
 
-    private fun findMostLikelyCard(tokens: List<String>): PkmnCardInfo? {
-        var maxSimilar = 0
-        var likely: PkmnCardInfo? = null
+    private fun displayPreviewCapture(image: ImageProxy) {
+        val buffer: ByteBuffer = image.planes[0].buffer
+        val bytes = ByteArray(buffer.capacity())
+        buffer[bytes]
+        var bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, null)
+        buffer.rewind()
 
-        val db = cardDatabase ?: PkmnCardDatabase(this@PhotoActivity.applicationContext)
+        val matrix = Matrix().apply { postRotate(image.imageInfo.rotationDegrees.toFloat()) }
+        bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, matrix, true)
+
+        runOnUiThread { viewBinding.resultImageView.setImageBitmap(bmp) }
+    }
+
+    private fun findMostLikelyCard(tokens: List<String>): PkmnAPICard? {
+        var maxSimilar = 0
+        var likely: PkmnAPICard? = null
+
+        val db = cardDatabase ?: PkmnAPIDatabase(this@PhotoActivity.applicationContext)
         val c = db.db.rawQuery("SELECT * FROM cards", null)
         while (c.moveToNext()) {
             var text = c.getString(1) + " " + c.getString(2)
@@ -172,7 +159,7 @@ class PhotoActivity : AppCompatActivity() {
             if (attacks != null) text += " ${attacks.replace("\\", " ")}"
             val flavortext = c.getStringOrNull(16)
             if (flavortext != null) text += " $flavortext"
-            text = text.lowercase().replace(ocrCleanupRegex," ")
+            text = text.lowercase().replace(ocrCleanupRegex, " ")
 
             var i = 0
             for (w in tokens) {
@@ -180,7 +167,7 @@ class PhotoActivity : AppCompatActivity() {
             }
             if (i > maxSimilar) {
                 maxSimilar = i
-                likely = PkmnCardInfo.fromDatabaseCursor(c)
+                likely = PkmnAPICard(c)
             }
             // TODO: Better token comparison?
         }
@@ -201,7 +188,8 @@ class PhotoActivity : AppCompatActivity() {
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-            imageCapture = ImageCapture.Builder().build()
+            imageCapture =
+                ImageCapture.Builder().setCaptureMode(CAPTURE_MODE_MAXIMIZE_QUALITY).build()
 
 //            val imageAnalyzer = ImageAnalysis.Builder()
 //                .build()
@@ -227,7 +215,8 @@ class PhotoActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        cameraExecutor.shutdown()
+        cameraExecutor.shutdownNow()
+        cardDatabase?.close()
     }
 
     override fun onRequestPermissionsResult(
@@ -266,8 +255,8 @@ class PhotoActivity : AppCompatActivity() {
     }
 
 
-
-    private class LuminosityAnalyzer(private val listener: (Double) -> Unit) : ImageAnalysis.Analyzer {
+    private class LuminosityAnalyzer(private val listener: (Double) -> Unit) :
+        ImageAnalysis.Analyzer {
 
         private fun ByteBuffer.toByteArray(): ByteArray {
             rewind()    // Rewind the buffer to zero
