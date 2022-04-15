@@ -2,7 +2,9 @@ package com.example.pokecards
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import com.example.pokecards.collections.Collections
 import com.example.pokecards.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -13,6 +15,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
+
+        supportFragmentManager.beginTransaction().apply {
+            add(viewBinding.pkmnFrameLayout.id, CardsMenuFragment(Collections.POKEMON))
+            add(viewBinding.yugiohFrameLayout.id, CardsMenuFragment(Collections.YUGIOH))
+            commit()
+        }
 
         viewBinding.button.setOnClickListener {
             startActivity(Intent(this, PhotoActivity::class.java))

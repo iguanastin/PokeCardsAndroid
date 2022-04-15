@@ -17,6 +17,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.database.getIntOrNull
 import androidx.core.database.getStringOrNull
+import com.example.pokecards.collections.pkmn.PkmnCardDatabase
+import com.example.pokecards.collections.pkmn.PkmnCardInfo
 import com.example.pokecards.databinding.ActivityPhotoBinding
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -33,6 +35,9 @@ class PhotoActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
 
     private var imageCapture: ImageCapture? = null
+
+    private var cardDatabase: PkmnCardDatabase? = null
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,9 +76,12 @@ class PhotoActivity : AppCompatActivity() {
                                 .split(Regex("\\s+"))
                             Log.i(TAG, "OCR Tokens:   " + tokens.joinToString(" "))
 
-                            val likely: PkmnCardInfo? =  findMostLikelyCard(tokens)
+                            val likely: PkmnCardInfo? = findMostLikelyCard(tokens)
 
-                            runOnUiThread { viewBinding.progressBar.visibility = View.INVISIBLE }
+                            runOnUiThread {
+                                viewBinding.progressBar.visibility = View.INVISIBLE
+                                viewBinding.imageCaptureButton.isEnabled = true
+                            }
 
                             Log.i(TAG, "Photographed card is likely: $likely")
                             startActivity(
@@ -88,7 +96,6 @@ class PhotoActivity : AppCompatActivity() {
                     }.addOnCompleteListener {
                         image.close()
                         ocr.close()
-                        runOnUiThread { viewBinding.imageCaptureButton.isEnabled = true }
                     }
                 }
 
@@ -149,7 +156,7 @@ class PhotoActivity : AppCompatActivity() {
         var maxSimilar = 0
         var likely: PkmnCardInfo? = null
 
-        val db = PkmnCardDatabase(this@PhotoActivity.applicationContext)
+        val db = cardDatabase ?: PkmnCardDatabase(this@PhotoActivity.applicationContext)
         val c = db.db.rawQuery("SELECT * FROM cards", null)
         while (c.moveToNext()) {
             var text = c.getString(1) + " " + c.getString(2)

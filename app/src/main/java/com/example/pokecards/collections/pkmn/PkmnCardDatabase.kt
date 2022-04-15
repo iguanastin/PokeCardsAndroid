@@ -1,4 +1,4 @@
-package com.example.pokecards
+package com.example.pokecards.collections.pkmn
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase

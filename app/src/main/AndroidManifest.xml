@@ -17,6 +17,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.PokeCards">
         <activity
+            android:name=".ViewCollectionActivity"
+            android:exported="false" />
+        <activity
             android:name=".TempCardViewActivity"
             android:exported="false" />
         <activity

@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import com.example.pokecards.databinding.ActivityMainBinding
 import com.example.pokecards.databinding.ActivityTempCardViewBinding
 import java.net.URL
