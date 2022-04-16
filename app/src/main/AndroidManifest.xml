@@ -20,7 +20,7 @@
             android:name=".ViewCollectionActivity"
             android:exported="false" />
         <activity
-            android:name=".APICardViewActivity"
+            android:name=".PkmnCardsImportActivity"
             android:exported="false" />
         <activity
             android:name=".PhotoActivity"

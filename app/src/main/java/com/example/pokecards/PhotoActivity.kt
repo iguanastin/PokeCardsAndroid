@@ -93,7 +93,7 @@ class PhotoActivity : AppCompatActivity() {
                                     .split(Regex("\\s+"))
                                 Log.i(TAG, "OCR Tokens:   " + tokens.joinToString(" "))
 
-                                val likely: PkmnAPICard? = findMostLikelyCard(tokens)
+                                val likely = findMostLikelyCards(tokens)
 
                                 runOnUiThread {
                                     viewBinding.apply {
@@ -103,12 +103,12 @@ class PhotoActivity : AppCompatActivity() {
                                     }
                                 }
 
-                                Log.i(TAG, "Photographed card is likely: $likely")
+                                Log.i(TAG, "Photographed card is likely: ${likely.map { it.id }}")
                                 startActivity(
                                     Intent(
                                         this@PhotoActivity,
-                                        APICardViewActivity::class.java
-                                    ).putExtra("card", likely)
+                                        PkmnCardsImportActivity::class.java
+                                    ).putExtra("cards", likely.toTypedArray())
                                 )
                             }
                         }.addOnFailureListener {
@@ -139,9 +139,8 @@ class PhotoActivity : AppCompatActivity() {
         runOnUiThread { viewBinding.resultImageView.setImageBitmap(bmp) }
     }
 
-    private fun findMostLikelyCard(tokens: List<String>): PkmnAPICard? {
-        var maxSimilar = 0
-        var likely: PkmnAPICard? = null
+    private fun findMostLikelyCards(tokens: List<String>): List<PkmnAPICard> {
+        val likely = mutableListOf<Pair<PkmnAPICard, Int>>()
 
         val db = cardDatabase ?: PkmnAPIDatabase(this@PhotoActivity.applicationContext)
         val c = db.db.rawQuery("SELECT * FROM cards", null)
@@ -165,16 +164,27 @@ class PhotoActivity : AppCompatActivity() {
             for (w in tokens) {
                 if (text.contains(w)) i++
             }
-            if (i > maxSimilar) {
-                maxSimilar = i
-                likely = PkmnAPICard(c)
+
+            var replace: Pair<PkmnAPICard, Int>? = null
+            for (p in likely.asReversed()) {
+                if (i > p.second) {
+                    replace = p
+                    break
+                }
+            }
+            if (replace != null || likely.size < 5) {
+                if (replace == null) {
+                    likely.add(Pair(PkmnAPICard(c), i))
+                } else {
+                    likely[likely.indexOf(replace)] = Pair(PkmnAPICard(c), i)
+                }
             }
             // TODO: Better token comparison?
         }
         c.close()
         db.close()
 
-        return likely
+        return likely.sortedByDescending { it.second }.map { it.first }
     }
 
     private fun startCamera() {
